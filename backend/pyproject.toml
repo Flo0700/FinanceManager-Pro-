@@ -1,0 +1,75 @@
+[project]
+name = "financemanager-pro-backend"
+version = "1.0.0"
+description = "Backend API for FinanceManager Pro SaaS"
+requires-python = ">=3.11"
+
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312", "py313"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | __pycache__
+  | build
+  | dist
+  | migrations
+  | \.eggs
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip = [".venv", "venv", "migrations", "__pycache__"]
+known_django = ["django"]
+known_drf = ["rest_framework"]
+sections = ["FUTURE", "STDLIB", "DJANGO", "DRF", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "migrations",
+    "build",
+    "dist",
+    ".eggs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "DJ",     # flake8-django
+]
+ignore = [
+    "E501",   # line too long (handled by black)
+    "B008",   # do not perform function calls in argument defaults
+    "C901",   # too complex
+    "DJ001",  # avoid using null=True on string-based fields
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"settings.py" = ["E501"]
+"*/tests/*.py" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
