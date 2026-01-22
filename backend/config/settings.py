@@ -182,7 +182,10 @@ SPECTACULAR_SETTINGS = {
         },
         {"name": "User", "description": "Gestion utilisateur"},
         {"name": "Companies", "description": "Gestion des entreprises (PME)"},
-        {"name": "Tenants", "description": "Multi-tenant (sélection et changement d'entreprise)"},
+        {
+            "name": "Tenants",
+            "description": "Multi-tenant (sélection et changement d'entreprise)",
+        },
         {"name": "Invoices", "description": "Facturation"},
         {"name": "Customers", "description": "Gestion des clients"},
         {"name": "Treasury", "description": "Trésorerie et rapprochements"},

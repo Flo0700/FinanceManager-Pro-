@@ -1,8 +1,7 @@
 import requests
 from django.conf import settings
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (OpenApiExample, OpenApiParameter,
-                                   extend_schema)
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,10 +9,13 @@ from rest_framework.response import Response
 
 from apps.common.serializers import ErrorSerializer
 
-from .serializers import (AuthCredentialsSerializer,
-                          AuthTokenResponseSerializer,
-                          GoogleAuthResponseSerializer,
-                          LogoutResponseSerializer, RefreshTokenSerializer)
+from .serializers import (
+    AuthCredentialsSerializer,
+    AuthTokenResponseSerializer,
+    GoogleAuthResponseSerializer,
+    LogoutResponseSerializer,
+    RefreshTokenSerializer,
+)
 
 
 @extend_schema(
@@ -358,9 +360,7 @@ def auth_resend_verification(request):
     email = request.data.get("email")
 
     if not email:
-        return Response(
-            {"error": "Email requis"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Email requis"}, status=status.HTTP_400_BAD_REQUEST)
 
     supabase_url = settings.SUPABASE_URL
     supabase_key = settings.SUPABASE_KEY

@@ -7,8 +7,12 @@ from rest_framework.response import Response
 from apps.common.serializers import ErrorSerializer, MessageSerializer
 
 from .models import Customer, Invoice
-from .serializers import (CustomerSerializer, InvoiceCreateSerializer,
-                          InvoiceListSerializer, InvoiceSerializer)
+from .serializers import (
+    CustomerSerializer,
+    InvoiceCreateSerializer,
+    InvoiceListSerializer,
+    InvoiceSerializer,
+)
 
 
 @extend_schema(
