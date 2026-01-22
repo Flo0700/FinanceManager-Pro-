@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 class RoleSerializer(serializers.Serializer):
     """Serializer pour les rôles."""
+
     id = serializers.UUIDField(read_only=True)
     code = serializers.CharField()
     label = serializers.CharField()
@@ -11,6 +12,7 @@ class RoleSerializer(serializers.Serializer):
 
 class EntrepriseMinimalSerializer(serializers.Serializer):
     """Serializer minimal pour l'entreprise dans le contexte utilisateur."""
+
     id = serializers.UUIDField()
     name = serializers.CharField()
     siret = serializers.CharField()
@@ -18,6 +20,7 @@ class EntrepriseMinimalSerializer(serializers.Serializer):
 
 class UserResponseSerializer(serializers.Serializer):
     """Serializer pour la réponse utilisateur."""
+
     id = serializers.UUIDField(help_text="UUID de l'utilisateur")
     username = serializers.CharField(help_text="Supabase sub (user ID)")
     email = serializers.EmailField()
@@ -28,6 +31,7 @@ class UserResponseSerializer(serializers.Serializer):
 
 class UserListSerializer(serializers.Serializer):
     """Serializer pour la liste des utilisateurs."""
+
     id = serializers.UUIDField()
     username = serializers.CharField()
     email = serializers.EmailField()

@@ -1,14 +1,18 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
-import uuid
 
 
 class BankTransaction(models.Model):
     """Transaction bancaire."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', on_delete=models.CASCADE, related_name="bank_transactions"
+        "companies.Entreprise",
+        on_delete=models.CASCADE,
+        related_name="bank_transactions",
     )
     date = models.DateField(default=timezone.now)
     label = models.CharField(max_length=255)
@@ -16,9 +20,9 @@ class BankTransaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'treasury_banktransaction'
-        verbose_name = 'Bank Transaction'
-        verbose_name_plural = 'Bank Transactions'
+        db_table = "treasury_banktransaction"
+        verbose_name = "Bank Transaction"
+        verbose_name_plural = "Bank Transactions"
         indexes = [models.Index(fields=["entreprise", "date"])]
 
     def __str__(self):
@@ -27,14 +31,15 @@ class BankTransaction(models.Model):
 
 class Reconciliation(models.Model):
     """Rapprochement entre facture et transaction bancaire."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', on_delete=models.CASCADE, related_name="reconciliations"
+        "companies.Entreprise", on_delete=models.CASCADE, related_name="reconciliations"
     )
 
     invoice = models.ForeignKey(
-        'invoices.Invoice', on_delete=models.PROTECT, related_name="reconciliations"
+        "invoices.Invoice", on_delete=models.PROTECT, related_name="reconciliations"
     )
     bank_transaction = models.ForeignKey(
         BankTransaction, on_delete=models.PROTECT, related_name="reconciliations"
@@ -44,13 +49,13 @@ class Reconciliation(models.Model):
     matched_at = models.DateTimeField(auto_now_add=True)
 
     matched_by = models.ForeignKey(
-        'users.User', on_delete=models.PROTECT, related_name="reconciliations"
+        "users.User", on_delete=models.PROTECT, related_name="reconciliations"
     )
 
     class Meta:
-        db_table = 'treasury_reconciliation'
-        verbose_name = 'Reconciliation'
-        verbose_name_plural = 'Reconciliations'
+        db_table = "treasury_reconciliation"
+        verbose_name = "Reconciliation"
+        verbose_name_plural = "Reconciliations"
         constraints = [
             models.UniqueConstraint(
                 fields=["entreprise", "invoice", "bank_transaction"],

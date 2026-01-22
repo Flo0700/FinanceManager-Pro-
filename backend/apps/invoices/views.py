@@ -1,35 +1,39 @@
-from rest_framework import status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiParameter
-from drf_spectacular.types import OpenApiTypes
 
-from .models import Invoice, InvoiceLine, Customer
-from .serializers import (
-    InvoiceSerializer, 
-    InvoiceListSerializer, 
-    InvoiceCreateSerializer,
-    CustomerSerializer,
-)
 from apps.common.serializers import ErrorSerializer, MessageSerializer
+
+from .models import Customer, Invoice
+from .serializers import (
+    CustomerSerializer,
+    InvoiceCreateSerializer,
+    InvoiceListSerializer,
+    InvoiceSerializer,
+)
 
 
 @extend_schema(
-    tags=['Invoices'],
+    tags=["Invoices"],
     summary="Lister les factures",
     description="Retourne la liste des factures de l'entreprise.",
     parameters=[
-        OpenApiParameter(name='status', type=str, description='Filtrer par statut'),
-        OpenApiParameter(name='from_date', type=OpenApiTypes.DATE, description='Date début'),
-        OpenApiParameter(name='to_date', type=OpenApiTypes.DATE, description='Date fin'),
+        OpenApiParameter(name="status", type=str, description="Filtrer par statut"),
+        OpenApiParameter(
+            name="from_date", type=OpenApiTypes.DATE, description="Date début"
+        ),
+        OpenApiParameter(
+            name="to_date", type=OpenApiTypes.DATE, description="Date fin"
+        ),
     ],
     responses={
         200: InvoiceListSerializer(many=True),
         401: ErrorSerializer,
     },
 )
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def invoice_list(request):
     """
@@ -39,33 +43,33 @@ def invoice_list(request):
     # TODO: Filtrer par entreprise via X-Company-Id
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
-    invoices = Invoice.objects.filter(entreprise=entreprise).select_related('customer')
-    
+    invoices = Invoice.objects.filter(entreprise=entreprise).select_related("customer")
+
     # Filtres optionnels
-    status_filter = request.query_params.get('status')
+    status_filter = request.query_params.get("status")
     if status_filter:
         invoices = invoices.filter(status=status_filter)
 
     data = [
         {
-            'id': str(inv.id),
-            'number': inv.number,
-            'status': inv.status,
-            'customer_name': inv.customer.name,
-            'issue_date': inv.issue_date.isoformat(),
-            'due_date': inv.due_date.isoformat() if inv.due_date else None,
-            'total_ttc': str(inv.total_ttc),
-            'created_at': inv.created_at.isoformat(),
+            "id": str(inv.id),
+            "number": inv.number,
+            "status": inv.status,
+            "customer_name": inv.customer.name,
+            "issue_date": inv.issue_date.isoformat(),
+            "due_date": inv.due_date.isoformat() if inv.due_date else None,
+            "total_ttc": str(inv.total_ttc),
+            "created_at": inv.created_at.isoformat(),
         }
-        for inv in invoices.order_by('-created_at')[:25]
+        for inv in invoices.order_by("-created_at")[:25]
     ]
     return Response(data)
 
 
 @extend_schema(
-    tags=['Invoices'],
+    tags=["Invoices"],
     summary="Créer une facture",
     description="Crée une nouvelle facture en brouillon.",
     request=InvoiceCreateSerializer,
@@ -75,7 +79,7 @@ def invoice_list(request):
         401: ErrorSerializer,
     },
 )
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def invoice_create(request):
     """
@@ -84,22 +88,24 @@ def invoice_create(request):
     """
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
-    customer_id = request.data.get('customer_id')
+    customer_id = request.data.get("customer_id")
     if not customer_id:
-        return Response({'error': 'customer_id requis'}, status=400)
+        return Response({"error": "customer_id requis"}, status=400)
 
     try:
         customer = Customer.objects.get(id=customer_id, entreprise=entreprise)
     except Customer.DoesNotExist:
-        return Response({'error': 'Client non trouvé'}, status=404)
+        return Response({"error": "Client non trouvé"}, status=404)
 
     # Générer numéro séquentiel
-    last_invoice = Invoice.objects.filter(entreprise=entreprise).order_by('-created_at').first()
+    last_invoice = (
+        Invoice.objects.filter(entreprise=entreprise).order_by("-created_at").first()
+    )
     if last_invoice and last_invoice.number:
         try:
-            last_num = int(last_invoice.number.split('-')[-1])
+            last_num = int(last_invoice.number.split("-")[-1])
             new_number = f"FAC-{last_num + 1:05d}"
         except ValueError:
             new_number = "FAC-00001"
@@ -110,26 +116,29 @@ def invoice_create(request):
         entreprise=entreprise,
         customer=customer,
         number=new_number,
-        issue_date=request.data.get('issue_date'),
-        due_date=request.data.get('due_date'),
+        issue_date=request.data.get("issue_date"),
+        due_date=request.data.get("due_date"),
     )
 
-    return Response({
-        'id': str(invoice.id),
-        'number': invoice.number,
-        'status': invoice.status,
-        'customer_id': str(customer.id),
-        'issue_date': invoice.issue_date.isoformat(),
-        'due_date': invoice.due_date.isoformat() if invoice.due_date else None,
-        'total_ht': str(invoice.total_ht),
-        'total_tva': str(invoice.total_tva),
-        'total_ttc': str(invoice.total_ttc),
-        'created_at': invoice.created_at.isoformat(),
-    }, status=201)
+    return Response(
+        {
+            "id": str(invoice.id),
+            "number": invoice.number,
+            "status": invoice.status,
+            "customer_id": str(customer.id),
+            "issue_date": invoice.issue_date.isoformat(),
+            "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
+            "total_ht": str(invoice.total_ht),
+            "total_tva": str(invoice.total_tva),
+            "total_ttc": str(invoice.total_ttc),
+            "created_at": invoice.created_at.isoformat(),
+        },
+        status=201,
+    )
 
 
 @extend_schema(
-    tags=['Invoices'],
+    tags=["Invoices"],
     summary="Détail d'une facture",
     description="Retourne les détails d'une facture avec ses lignes.",
     responses={
@@ -138,7 +147,7 @@ def invoice_create(request):
         404: ErrorSerializer,
     },
 )
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def invoice_detail(request, invoice_id):
     """
@@ -147,51 +156,55 @@ def invoice_detail(request, invoice_id):
     """
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
     try:
-        invoice = Invoice.objects.select_related('customer').prefetch_related('lines').get(
-            id=invoice_id, entreprise=entreprise
+        invoice = (
+            Invoice.objects.select_related("customer")
+            .prefetch_related("lines")
+            .get(id=invoice_id, entreprise=entreprise)
         )
     except Invoice.DoesNotExist:
-        return Response({'error': 'Facture non trouvée'}, status=404)
+        return Response({"error": "Facture non trouvée"}, status=404)
 
     lines = [
         {
-            'id': str(line.id),
-            'label': line.label,
-            'qty': str(line.qty),
-            'unit_price': str(line.unit_price),
-            'vat_rate': str(line.vat_rate),
-            'total_ht': str(line.total_ht),
-            'total_tva': str(line.total_tva),
-            'total_ttc': str(line.total_ttc),
+            "id": str(line.id),
+            "label": line.label,
+            "qty": str(line.qty),
+            "unit_price": str(line.unit_price),
+            "vat_rate": str(line.vat_rate),
+            "total_ht": str(line.total_ht),
+            "total_tva": str(line.total_tva),
+            "total_ttc": str(line.total_ttc),
         }
         for line in invoice.lines.all()
     ]
 
-    return Response({
-        'id': str(invoice.id),
-        'number': invoice.number,
-        'status': invoice.status,
-        'customer': {
-            'id': str(invoice.customer.id),
-            'name': invoice.customer.name,
-            'email': invoice.customer.email,
-        },
-        'issue_date': invoice.issue_date.isoformat(),
-        'due_date': invoice.due_date.isoformat() if invoice.due_date else None,
-        'total_ht': str(invoice.total_ht),
-        'total_tva': str(invoice.total_tva),
-        'total_ttc': str(invoice.total_ttc),
-        'lines': lines,
-        'created_at': invoice.created_at.isoformat(),
-        'updated_at': invoice.updated_at.isoformat(),
-    })
+    return Response(
+        {
+            "id": str(invoice.id),
+            "number": invoice.number,
+            "status": invoice.status,
+            "customer": {
+                "id": str(invoice.customer.id),
+                "name": invoice.customer.name,
+                "email": invoice.customer.email,
+            },
+            "issue_date": invoice.issue_date.isoformat(),
+            "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
+            "total_ht": str(invoice.total_ht),
+            "total_tva": str(invoice.total_tva),
+            "total_ttc": str(invoice.total_ttc),
+            "lines": lines,
+            "created_at": invoice.created_at.isoformat(),
+            "updated_at": invoice.updated_at.isoformat(),
+        }
+    )
 
 
 @extend_schema(
-    tags=['Invoices'],
+    tags=["Invoices"],
     summary="Valider une facture",
     description="Valide une facture (fige le numéro et le hash).",
     responses={
@@ -201,7 +214,7 @@ def invoice_detail(request, invoice_id):
         404: ErrorSerializer,
     },
 )
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def invoice_validate(request, invoice_id):
     """
@@ -210,24 +223,27 @@ def invoice_validate(request, invoice_id):
     """
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
     try:
         invoice = Invoice.objects.get(id=invoice_id, entreprise=entreprise)
     except Invoice.DoesNotExist:
-        return Response({'error': 'Facture non trouvée'}, status=404)
+        return Response({"error": "Facture non trouvée"}, status=404)
 
     if invoice.status != Invoice.Status.DRAFT:
-        return Response({'error': 'Seules les factures en brouillon peuvent être validées'}, status=400)
+        return Response(
+            {"error": "Seules les factures en brouillon peuvent être validées"},
+            status=400,
+        )
 
     invoice.status = Invoice.Status.ISSUED
     invoice.save()
 
-    return Response({'message': 'Facture validée'})
+    return Response({"message": "Facture validée"})
 
 
 @extend_schema(
-    tags=['Invoices'],
+    tags=["Invoices"],
     summary="Annuler une facture",
     description="Annule une facture (ne peut pas être supprimée).",
     responses={
@@ -237,7 +253,7 @@ def invoice_validate(request, invoice_id):
         404: ErrorSerializer,
     },
 )
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def invoice_cancel(request, invoice_id):
     """
@@ -246,26 +262,27 @@ def invoice_cancel(request, invoice_id):
     """
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
     try:
         invoice = Invoice.objects.get(id=invoice_id, entreprise=entreprise)
     except Invoice.DoesNotExist:
-        return Response({'error': 'Facture non trouvée'}, status=404)
+        return Response({"error": "Facture non trouvée"}, status=404)
 
     if invoice.status == Invoice.Status.CANCELED:
-        return Response({'error': 'Facture déjà annulée'}, status=400)
+        return Response({"error": "Facture déjà annulée"}, status=400)
 
     invoice.status = Invoice.Status.CANCELED
     invoice.save()
 
-    return Response({'message': 'Facture annulée'})
+    return Response({"message": "Facture annulée"})
 
 
 # ========== Customers ==========
 
+
 @extend_schema(
-    tags=['Customers'],
+    tags=["Customers"],
     summary="Lister les clients",
     description="Retourne la liste des clients de l'entreprise.",
     responses={
@@ -273,7 +290,7 @@ def invoice_cancel(request, invoice_id):
         401: ErrorSerializer,
     },
 )
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def customer_list(request):
     """
@@ -282,18 +299,18 @@ def customer_list(request):
     """
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
-    customers = Customer.objects.filter(entreprise=entreprise).order_by('name')
+    customers = Customer.objects.filter(entreprise=entreprise).order_by("name")
     data = [
         {
-            'id': str(c.id),
-            'name': c.name,
-            'email': c.email,
-            'phone': c.phone,
-            'address': c.address,
-            'vat_number': c.vat_number,
-            'created_at': c.created_at.isoformat(),
+            "id": str(c.id),
+            "name": c.name,
+            "email": c.email,
+            "phone": c.phone,
+            "address": c.address,
+            "vat_number": c.vat_number,
+            "created_at": c.created_at.isoformat(),
         }
         for c in customers
     ]
@@ -301,7 +318,7 @@ def customer_list(request):
 
 
 @extend_schema(
-    tags=['Customers'],
+    tags=["Customers"],
     summary="Créer un client",
     description="Crée un nouveau client.",
     request=CustomerSerializer,
@@ -311,7 +328,7 @@ def customer_list(request):
         401: ErrorSerializer,
     },
 )
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def customer_create(request):
     """
@@ -320,27 +337,30 @@ def customer_create(request):
     """
     entreprise = request.user.entreprise
     if not entreprise:
-        return Response({'error': 'Entreprise non définie'}, status=400)
+        return Response({"error": "Entreprise non définie"}, status=400)
 
-    name = request.data.get('name')
+    name = request.data.get("name")
     if not name:
-        return Response({'error': 'name requis'}, status=400)
+        return Response({"error": "name requis"}, status=400)
 
     customer = Customer.objects.create(
         entreprise=entreprise,
         name=name,
-        email=request.data.get('email', ''),
-        phone=request.data.get('phone', ''),
-        address=request.data.get('address', ''),
-        vat_number=request.data.get('vat_number', ''),
+        email=request.data.get("email", ""),
+        phone=request.data.get("phone", ""),
+        address=request.data.get("address", ""),
+        vat_number=request.data.get("vat_number", ""),
     )
 
-    return Response({
-        'id': str(customer.id),
-        'name': customer.name,
-        'email': customer.email,
-        'phone': customer.phone,
-        'address': customer.address,
-        'vat_number': customer.vat_number,
-        'created_at': customer.created_at.isoformat(),
-    }, status=201)
+    return Response(
+        {
+            "id": str(customer.id),
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "address": customer.address,
+            "vat_number": customer.vat_number,
+            "created_at": customer.created_at.isoformat(),
+        },
+        status=201,
+    )

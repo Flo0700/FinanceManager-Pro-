@@ -1,22 +1,22 @@
-from django.db import models
 import uuid
+
+from django.db import models
 
 
 class AuditLog(models.Model):
     """Log d'audit pour tracer les actions critiques."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name="audit_logs"
+        "companies.Entreprise",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
     )
     actor = models.ForeignKey(
-        'users.User', 
-        on_delete=models.PROTECT, 
-        related_name="audit_logs"
+        "users.User", on_delete=models.PROTECT, related_name="audit_logs"
     )
 
     action = models.CharField(max_length=64)
@@ -26,9 +26,9 @@ class AuditLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'audit_auditlog'
-        verbose_name = 'Audit Log'
-        verbose_name_plural = 'Audit Logs'
+        db_table = "audit_auditlog"
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
         indexes = [
             models.Index(fields=["entreprise", "created_at"]),
             models.Index(fields=["actor", "created_at"]),
