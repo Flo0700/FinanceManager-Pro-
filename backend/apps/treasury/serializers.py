@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 class BankTransactionSerializer(serializers.Serializer):
     """Serializer pour une transaction bancaire."""
+
     id = serializers.UUIDField(read_only=True)
     date = serializers.DateField()
     label = serializers.CharField(max_length=255)
@@ -12,6 +13,7 @@ class BankTransactionSerializer(serializers.Serializer):
 
 class BankTransactionCreateSerializer(serializers.Serializer):
     """Serializer pour la création d'une transaction."""
+
     date = serializers.DateField(required=False)
     label = serializers.CharField(max_length=255)
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
@@ -19,6 +21,7 @@ class BankTransactionCreateSerializer(serializers.Serializer):
 
 class ReconciliationSerializer(serializers.Serializer):
     """Serializer pour un rapprochement."""
+
     id = serializers.UUIDField(read_only=True)
     invoice_id = serializers.UUIDField()
     bank_transaction_id = serializers.UUIDField()
@@ -29,6 +32,7 @@ class ReconciliationSerializer(serializers.Serializer):
 
 class ReconciliationCreateSerializer(serializers.Serializer):
     """Serializer pour la création d'un rapprochement."""
+
     invoice_id = serializers.UUIDField()
     bank_transaction_id = serializers.UUIDField()
     matched_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
@@ -36,6 +40,7 @@ class ReconciliationCreateSerializer(serializers.Serializer):
 
 class TreasuryDashboardSerializer(serializers.Serializer):
     """Serializer pour le dashboard trésorerie."""
+
     balance = serializers.DecimalField(max_digits=12, decimal_places=2)
     total_in = serializers.DecimalField(max_digits=12, decimal_places=2)
     total_out = serializers.DecimalField(max_digits=12, decimal_places=2)
