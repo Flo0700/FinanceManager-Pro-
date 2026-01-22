@@ -54,7 +54,7 @@ jobs:
   auto-format:
     name: Auto Format & Create PR
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: always() && needs.lint.result == 'failure'
     defaults:
       run:
         working-directory: backend
