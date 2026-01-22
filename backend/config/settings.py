@@ -178,10 +178,11 @@ SPECTACULAR_SETTINGS = {
     "TAGS": [
         {
             "name": "Auth",
-            "description": "Authentification Supabase (register, login, Google OAuth)",
+            "description": "Authentification Supabase (register, login, Google OAuth, email verification)",
         },
         {"name": "User", "description": "Gestion utilisateur"},
         {"name": "Companies", "description": "Gestion des entreprises (PME)"},
+        {"name": "Tenants", "description": "Multi-tenant (sélection et changement d'entreprise)"},
         {"name": "Invoices", "description": "Facturation"},
         {"name": "Customers", "description": "Gestion des clients"},
         {"name": "Treasury", "description": "Trésorerie et rapprochements"},
