@@ -51,6 +51,7 @@ API: `http://127.0.0.1:8000`
 
 - **Swagger UI**: http://127.0.0.1:8000/api/docs/
 - **ReDoc**: http://127.0.0.1:8000/api/redoc/
+- **UserDoc**: http://127.0.0.1:8000/api/userdoc/
 
 ## 🔗 Endpoints
 
