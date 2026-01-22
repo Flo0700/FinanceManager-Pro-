@@ -75,3 +75,64 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email or self.username
+
+
+class Membership(models.Model):
+    """
+    Liaison entre un utilisateur et une entreprise (tenant) avec un rôle.
+    Permet le multi-tenant : un utilisateur peut appartenir à plusieurs entreprises.
+    """
+
+    # Rôles pour le membership (différent des rôles système)
+    ROLE_TENANT_OWNER = "TENANT_OWNER"
+    ROLE_COMPTABLE = "COMPTABLE"
+    ROLE_COLLABORATEUR = "COLLABORATEUR"
+    ROLE_ADMIN_CABINET = "ADMIN_CABINET"
+
+    ROLE_CHOICES = [
+        (ROLE_TENANT_OWNER, "Gérant (Propriétaire)"),
+        (ROLE_COMPTABLE, "Comptable"),
+        (ROLE_COLLABORATEUR, "Collaborateur"),
+        (ROLE_ADMIN_CABINET, "Admin Cabinet"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    entreprise = models.ForeignKey(
+        "companies.Entreprise",
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    role = models.CharField(
+        max_length=50,
+        choices=ROLE_CHOICES,
+        default=ROLE_COLLABORATEUR,
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "users_membership"
+        verbose_name = "Membership"
+        verbose_name_plural = "Memberships"
+        # Un utilisateur ne peut avoir qu'un seul membership par entreprise
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "entreprise"],
+                name="unique_user_entreprise_membership",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["entreprise"]),
+            models.Index(fields=["role"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.entreprise.name} ({self.role})"
