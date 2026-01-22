@@ -20,12 +20,15 @@ from django.urls import include, path
 from drf_spectacular.views import (SpectacularAPIView, SpectacularRedocView,
                                    SpectacularSwaggerView)
 
+from apps.companies.urls import tenants_urlpatterns
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     # API v1
     path("api/v1/", include("apps.users.urls")),
     path("api/v1/auth/", include("apps.authentication.urls")),
     path("api/v1/companies/", include("apps.companies.urls")),
+    path("api/v1/tenants/", include((tenants_urlpatterns, "tenants"))),
     path("api/v1/invoices/", include("apps.invoices.urls")),
     path("api/v1/treasury/", include("apps.treasury.urls")),
     # Documentation API
