@@ -1,0 +1,35 @@
+{
+  "python.defaultInterpreterPath": ".venv/bin/python",
+
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+
+  "python.formatting.provider": "none",
+  "[python]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4
+  },
+
+  "ruff.enable": true,
+  "ruff.lint.run": "onType",
+  "ruff.organizeImports": true,
+  "ruff.fixAll": true,
+
+  "black-formatter.args": ["--line-length", "88"],
+
+  "isort.args": ["--profile", "black"],
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".venv": true,
+    "*.egg-info": true
+  },
+
+  "python.analysis.extraPaths": ["${workspaceFolder}"],
+  "python.analysis.typeCheckingMode": "basic"
+}
