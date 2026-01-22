@@ -1,14 +1,16 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
-import uuid
 
 
 class Customer(models.Model):
     """Client d'une entreprise."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', on_delete=models.CASCADE, related_name="customers"
+        "companies.Entreprise", on_delete=models.CASCADE, related_name="customers"
     )
     name = models.CharField(max_length=255)
     email = models.EmailField(blank=True, default="")
@@ -18,9 +20,9 @@ class Customer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'invoices_customer'
-        verbose_name = 'Customer'
-        verbose_name_plural = 'Customers'
+        db_table = "invoices_customer"
+        verbose_name = "Customer"
+        verbose_name_plural = "Customers"
         indexes = [models.Index(fields=["entreprise", "name"])]
 
     def __str__(self):
@@ -29,6 +31,7 @@ class Customer(models.Model):
 
 class Invoice(models.Model):
     """Facture."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     class Status(models.TextChoices):
@@ -38,14 +41,16 @@ class Invoice(models.Model):
         CANCELED = "CANCELED", "Annulée"
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', on_delete=models.CASCADE, related_name="invoices"
+        "companies.Entreprise", on_delete=models.CASCADE, related_name="invoices"
     )
     customer = models.ForeignKey(
         Customer, on_delete=models.PROTECT, related_name="invoices"
     )
 
     number = models.CharField(max_length=50)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.DRAFT
+    )
 
     issue_date = models.DateField(default=timezone.now)
     due_date = models.DateField(null=True, blank=True)
@@ -63,13 +68,12 @@ class Invoice(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'invoices_invoice'
-        verbose_name = 'Invoice'
-        verbose_name_plural = 'Invoices'
+        db_table = "invoices_invoice"
+        verbose_name = "Invoice"
+        verbose_name_plural = "Invoices"
         constraints = [
             models.UniqueConstraint(
-                fields=["entreprise", "number"], 
-                name="uniq_invoice_number_per_tenant"
+                fields=["entreprise", "number"], name="uniq_invoice_number_per_tenant"
             ),
         ]
         indexes = [
@@ -83,14 +87,13 @@ class Invoice(models.Model):
 
 class InvoiceLine(models.Model):
     """Ligne de facture."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', on_delete=models.CASCADE, related_name="invoice_lines"
+        "companies.Entreprise", on_delete=models.CASCADE, related_name="invoice_lines"
     )
-    invoice = models.ForeignKey(
-        Invoice, on_delete=models.CASCADE, related_name="lines"
-    )
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="lines")
 
     label = models.CharField(max_length=255)
     qty = models.DecimalField(max_digits=10, decimal_places=2, default=1)
@@ -102,18 +105,24 @@ class InvoiceLine(models.Model):
     total_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     class Meta:
-        db_table = 'invoices_invoiceline'
-        verbose_name = 'Invoice Line'
-        verbose_name_plural = 'Invoice Lines'
+        db_table = "invoices_invoiceline"
+        verbose_name = "Invoice Line"
+        verbose_name_plural = "Invoice Lines"
         indexes = [models.Index(fields=["entreprise", "invoice"])]
+
+    def __str__(self):
+        return f"{self.label} x{self.qty}"
 
 
 class InvoiceDocument(models.Model):
     """Document PDF généré pour une facture."""
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     entreprise = models.ForeignKey(
-        'companies.Entreprise', on_delete=models.CASCADE, related_name="invoice_documents"
+        "companies.Entreprise",
+        on_delete=models.CASCADE,
+        related_name="invoice_documents",
     )
     invoice = models.ForeignKey(
         Invoice, on_delete=models.CASCADE, related_name="documents"
@@ -122,6 +131,9 @@ class InvoiceDocument(models.Model):
     generated_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'invoices_invoicedocument'
-        verbose_name = 'Invoice Document'
-        verbose_name_plural = 'Invoice Documents'
+        db_table = "invoices_invoicedocument"
+        verbose_name = "Invoice Document"
+        verbose_name_plural = "Invoice Documents"
+
+    def __str__(self):
+        return f"Document {self.invoice.number}"
