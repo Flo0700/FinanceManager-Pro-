@@ -62,7 +62,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WORK_GITHUB_TOKEN }}
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
@@ -90,7 +90,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WORK_GITHUB_TOKEN }}
           commit-message: "style: auto-format code with ruff, black, isort"
           title: "Auto-format: Code style fixes"
           body: |
