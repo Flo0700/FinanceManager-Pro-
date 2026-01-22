@@ -20,8 +20,8 @@ cd FinanceManager-Pro-/backend
 python3 -m venv .venv
 source .venv/bin/activate  # Linux/Mac
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependenciespip install -r requirements.txt
+python.exe -m pip install --upgrade pip
 ```
 
 ### Configuration
