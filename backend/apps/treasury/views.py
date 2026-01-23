@@ -40,6 +40,7 @@ def treasury_dashboard(request):
     if not entreprise:
         return Response({"error": "Entreprise non définie"}, status=400)
 
+    # Treasury balance from bank transactions
     transactions = BankTransaction.objects.filter(entreprise=entreprise)
 
     total_in = (
@@ -48,26 +49,59 @@ def treasury_dashboard(request):
     total_out = (
         transactions.filter(amount__lt=0).aggregate(total=Sum("amount"))["total"] or 0
     )
-    balance = total_in + total_out
+    treasury_balance = total_in + total_out
 
-    recent = transactions.order_by("-date", "-created_at")[:20]
-    recent_data = [
+    # Invoice statistics
+    invoices = Invoice.objects.filter(entreprise=entreprise)
+    total_invoices = invoices.count()
+    total_amount_ttc = invoices.aggregate(total=Sum("total_ttc"))["total"] or 0
+    pending_invoices = invoices.filter(status__in=["DRAFT", "ISSUED"]).count()
+    pending_amount = (
+        invoices.filter(status__in=["DRAFT", "ISSUED"]).aggregate(total=Sum("total_ttc"))["total"]
+        or 0
+    )
+
+    # Recent transactions
+    recent_transactions = transactions.order_by("-date", "-created_at")[:10]
+    recent_transactions_data = [
         {
             "id": str(t.id),
             "date": t.date.isoformat(),
             "label": t.label,
             "amount": str(t.amount),
+            "is_reconciled": Reconciliation.objects.filter(bank_transaction=t).exists(),
             "created_at": t.created_at.isoformat(),
         }
-        for t in recent
+        for t in recent_transactions
+    ]
+
+    # Recent invoices
+    recent_invoices = invoices.select_related("customer").order_by("-created_at")[:10]
+    recent_invoices_data = [
+        {
+            "id": str(inv.id),
+            "number": inv.number,
+            "status": inv.status,
+            "customer_name": inv.customer.name if inv.customer else "-",
+            "issue_date": inv.issue_date.isoformat(),
+            "due_date": inv.due_date.isoformat() if inv.due_date else None,
+            "total_ttc": str(inv.total_ttc),
+            "created_at": inv.created_at.isoformat(),
+        }
+        for inv in recent_invoices
     ]
 
     return Response(
         {
-            "balance": str(balance),
-            "total_in": str(total_in),
-            "total_out": str(total_out),
-            "recent_transactions": recent_data,
+            "treasury_balance": float(treasury_balance),
+            "total_in": float(total_in),
+            "total_out": float(total_out),
+            "total_invoices": total_invoices,
+            "total_amount_ttc": float(total_amount_ttc),
+            "pending_invoices": pending_invoices,
+            "pending_amount": float(pending_amount),
+            "recent_transactions": recent_transactions_data,
+            "recent_invoices": recent_invoices_data,
         }
     )
 

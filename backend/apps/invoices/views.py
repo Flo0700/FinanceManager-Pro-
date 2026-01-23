@@ -7,7 +7,7 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema
 
 from apps.common.serializers import ErrorSerializer, MessageSerializer
 
-from .models import Customer, Invoice
+from .models import Customer, Invoice, InvoiceLine
 from .serializers import (
     CustomerSerializer,
     InvoiceCreateSerializer,
@@ -87,6 +87,9 @@ def invoice_create(request):
     POST /api/v1/invoices
     Création d'une facture.
     """
+    from datetime import datetime
+    from decimal import Decimal
+
     entreprise = request.user.entreprise
     if not entreprise:
         return Response({"error": "Entreprise non définie"}, status=400)
@@ -113,13 +116,75 @@ def invoice_create(request):
     else:
         new_number = "FAC-00001"
 
-    invoice = Invoice.objects.create(
-        entreprise=entreprise,
-        customer=customer,
-        number=new_number,
-        issue_date=request.data.get("issue_date"),
-        due_date=request.data.get("due_date"),
-    )
+    # Parse dates
+    issue_date_str = request.data.get("issue_date")
+    due_date_str = request.data.get("due_date")
+
+    issue_date = None
+    due_date = None
+
+    if issue_date_str:
+        try:
+            issue_date = datetime.strptime(issue_date_str, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return Response({"error": "Format de date d'émission invalide"}, status=400)
+
+    if due_date_str:
+        try:
+            due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            pass  # due_date is optional
+
+    # Build invoice data
+    invoice_data = {
+        "entreprise": entreprise,
+        "customer": customer,
+        "number": new_number,
+    }
+    if issue_date is not None:
+        invoice_data["issue_date"] = issue_date
+    if due_date is not None:
+        invoice_data["due_date"] = due_date
+
+    invoice = Invoice.objects.create(**invoice_data)
+
+    # Process lines
+    lines_data = request.data.get("lines", [])
+    total_ht = Decimal("0")
+    total_tva = Decimal("0")
+    total_ttc = Decimal("0")
+
+    for line_data in lines_data:
+        description = line_data.get("description", "")
+        qty = Decimal(str(line_data.get("quantity", 1)))
+        unit_price = Decimal(str(line_data.get("unit_price", 0)))
+        vat_rate = Decimal(str(line_data.get("vat_rate", 20)))
+
+        line_total_ht = qty * unit_price
+        line_total_tva = line_total_ht * (vat_rate / Decimal("100"))
+        line_total_ttc = line_total_ht + line_total_tva
+
+        InvoiceLine.objects.create(
+            entreprise=entreprise,
+            invoice=invoice,
+            label=description,
+            qty=qty,
+            unit_price=unit_price,
+            vat_rate=vat_rate,
+            total_ht=line_total_ht,
+            total_tva=line_total_tva,
+            total_ttc=line_total_ttc,
+        )
+
+        total_ht += line_total_ht
+        total_tva += line_total_tva
+        total_ttc += line_total_ttc
+
+    # Update invoice totals
+    invoice.total_ht = total_ht
+    invoice.total_tva = total_tva
+    invoice.total_ttc = total_ttc
+    invoice.save()
 
     return Response(
         {
