@@ -327,3 +327,339 @@ def tenant_current(request):
             "is_active": entreprise.is_active,
         }
     )
+
+
+# ============================================
+# Endpoints Team (Gestion des membres)
+# ============================================
+
+
+@extend_schema(
+    tags=["Team"],
+    summary="Liste des membres de l'équipe",
+    description="Retourne la liste des membres de l'entreprise active.",
+    responses={
+        200: {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "format": "uuid"},
+                    "user_id": {"type": "string", "format": "uuid"},
+                    "email": {"type": "string"},
+                    "role": {"type": "string"},
+                    "is_active": {"type": "boolean"},
+                    "joined_at": {"type": "string", "format": "date-time"},
+                },
+            },
+        },
+        401: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def team_members_list(request):
+    """
+    GET /api/v1/tenants/members
+    Liste des membres de l'entreprise active.
+    """
+    if not request.user.entreprise:
+        return Response(
+            {"error": "Aucun tenant actif"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    memberships = Membership.objects.filter(
+        entreprise=request.user.entreprise, is_active=True
+    ).select_related("user")
+
+    data = [
+        {
+            "id": str(m.id),
+            "user_id": str(m.user.id),
+            "email": m.user.email,
+            "role": m.role,
+            "is_active": m.is_active,
+            "joined_at": m.created_at.isoformat(),
+        }
+        for m in memberships
+    ]
+    return Response(data)
+
+
+@extend_schema(
+    tags=["Team"],
+    summary="Inviter un membre",
+    description="Invite un utilisateur existant à rejoindre l'entreprise.",
+    request={
+        "type": "object",
+        "properties": {
+            "email": {"type": "string", "format": "email"},
+            "role": {"type": "string", "enum": ["COMPTABLE", "COLLABORATEUR"]},
+        },
+        "required": ["email", "role"],
+    },
+    responses={
+        201: {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "email": {"type": "string"},
+                "role": {"type": "string"},
+                "message": {"type": "string"},
+            },
+        },
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+        403: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def team_member_invite(request):
+    """
+    POST /api/v1/tenants/members/invite
+    Invite un utilisateur à rejoindre l'entreprise.
+    """
+    from apps.users.models import User
+
+    if not request.user.entreprise:
+        return Response(
+            {"error": "Aucun tenant actif"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Vérifier que l'utilisateur courant a les droits (TENANT_OWNER ou ADMIN)
+    try:
+        current_membership = Membership.objects.get(
+            user=request.user, entreprise=request.user.entreprise, is_active=True
+        )
+        if current_membership.role not in [
+            Membership.ROLE_TENANT_OWNER,
+            Membership.ROLE_ADMIN_CABINET,
+        ]:
+            return Response(
+                {"error": "Vous n'avez pas les droits pour inviter des membres"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+    except Membership.DoesNotExist:
+        return Response(
+            {"error": "Accès non autorisé"}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    email = request.data.get("email")
+    role = request.data.get("role", Membership.ROLE_COLLABORATEUR)
+
+    if not email:
+        return Response(
+            {"error": "Email requis"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Valider le rôle
+    valid_roles = [Membership.ROLE_COMPTABLE, Membership.ROLE_COLLABORATEUR]
+    if role not in valid_roles:
+        return Response(
+            {"error": f"Rôle invalide. Choix: {', '.join(valid_roles)}"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Vérifier si l'utilisateur existe
+    try:
+        user_to_invite = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response(
+            {"error": "Utilisateur non trouvé. Il doit d'abord créer un compte."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Vérifier si le membre existe déjà
+    if Membership.objects.filter(
+        user=user_to_invite, entreprise=request.user.entreprise
+    ).exists():
+        return Response(
+            {"error": "Cet utilisateur est déjà membre de l'entreprise"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Créer le membership
+    membership = Membership.objects.create(
+        user=user_to_invite,
+        entreprise=request.user.entreprise,
+        role=role,
+    )
+
+    return Response(
+        {
+            "id": str(membership.id),
+            "email": user_to_invite.email,
+            "role": membership.role,
+            "message": f"Utilisateur {email} ajouté avec succès",
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@extend_schema(
+    tags=["Team"],
+    summary="Retirer un membre",
+    description="Retire un membre de l'entreprise.",
+    responses={
+        200: {"type": "object", "properties": {"message": {"type": "string"}}},
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+        403: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def team_member_remove(request, membership_id):
+    """
+    DELETE /api/v1/tenants/members/{membership_id}
+    Retire un membre de l'entreprise.
+    """
+    if not request.user.entreprise:
+        return Response(
+            {"error": "Aucun tenant actif"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Vérifier que l'utilisateur courant a les droits
+    try:
+        current_membership = Membership.objects.get(
+            user=request.user, entreprise=request.user.entreprise, is_active=True
+        )
+        if current_membership.role not in [
+            Membership.ROLE_TENANT_OWNER,
+            Membership.ROLE_ADMIN_CABINET,
+        ]:
+            return Response(
+                {"error": "Vous n'avez pas les droits pour retirer des membres"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+    except Membership.DoesNotExist:
+        return Response(
+            {"error": "Accès non autorisé"}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    # Trouver le membership à supprimer
+    try:
+        membership = Membership.objects.get(
+            id=membership_id, entreprise=request.user.entreprise
+        )
+    except Membership.DoesNotExist:
+        return Response(
+            {"error": "Membre non trouvé"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Empêcher de se retirer soi-même
+    if membership.user == request.user:
+        return Response(
+            {"error": "Vous ne pouvez pas vous retirer vous-même"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Empêcher de retirer le propriétaire
+    if membership.role == Membership.ROLE_TENANT_OWNER:
+        return Response(
+            {"error": "Impossible de retirer le propriétaire de l'entreprise"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Désactiver le membership (soft delete)
+    membership.is_active = False
+    membership.save(update_fields=["is_active", "updated_at"])
+
+    return Response({"message": "Membre retiré avec succès"})
+
+
+@extend_schema(
+    tags=["Team"],
+    summary="Modifier le rôle d'un membre",
+    description="Modifie le rôle d'un membre de l'entreprise.",
+    request={
+        "type": "object",
+        "properties": {
+            "role": {"type": "string", "enum": ["COMPTABLE", "COLLABORATEUR"]},
+        },
+        "required": ["role"],
+    },
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "role": {"type": "string"},
+                "message": {"type": "string"},
+            },
+        },
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+        403: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def team_member_update(request, membership_id):
+    """
+    PATCH /api/v1/tenants/members/{membership_id}
+    Modifie le rôle d'un membre.
+    """
+    if not request.user.entreprise:
+        return Response(
+            {"error": "Aucun tenant actif"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Vérifier que l'utilisateur courant a les droits
+    try:
+        current_membership = Membership.objects.get(
+            user=request.user, entreprise=request.user.entreprise, is_active=True
+        )
+        if current_membership.role not in [
+            Membership.ROLE_TENANT_OWNER,
+            Membership.ROLE_ADMIN_CABINET,
+        ]:
+            return Response(
+                {"error": "Vous n'avez pas les droits pour modifier les rôles"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+    except Membership.DoesNotExist:
+        return Response(
+            {"error": "Accès non autorisé"}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    # Trouver le membership à modifier
+    try:
+        membership = Membership.objects.get(
+            id=membership_id, entreprise=request.user.entreprise, is_active=True
+        )
+    except Membership.DoesNotExist:
+        return Response(
+            {"error": "Membre non trouvé"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Empêcher de modifier le propriétaire
+    if membership.role == Membership.ROLE_TENANT_OWNER:
+        return Response(
+            {"error": "Impossible de modifier le rôle du propriétaire"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    role = request.data.get("role")
+    valid_roles = [Membership.ROLE_COMPTABLE, Membership.ROLE_COLLABORATEUR]
+    if role not in valid_roles:
+        return Response(
+            {"error": f"Rôle invalide. Choix: {', '.join(valid_roles)}"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    membership.role = role
+    membership.save(update_fields=["role", "updated_at"])
+
+    return Response(
+        {
+            "id": str(membership.id),
+            "role": membership.role,
+            "message": "Rôle mis à jour avec succès",
+        }
+    )
