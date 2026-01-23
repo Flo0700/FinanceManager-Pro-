@@ -57,7 +57,9 @@ def treasury_dashboard(request):
     total_amount_ttc = invoices.aggregate(total=Sum("total_ttc"))["total"] or 0
     pending_invoices = invoices.filter(status__in=["DRAFT", "ISSUED"]).count()
     pending_amount = (
-        invoices.filter(status__in=["DRAFT", "ISSUED"]).aggregate(total=Sum("total_ttc"))["total"]
+        invoices.filter(status__in=["DRAFT", "ISSUED"]).aggregate(
+            total=Sum("total_ttc")
+        )["total"]
         or 0
     )
 
