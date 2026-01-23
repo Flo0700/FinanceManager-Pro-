@@ -190,7 +190,7 @@ jobs:
         working-directory: backend
 
     outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
+      image_tag: ${{ steps.meta.outputs.tags }} 
 
     steps:
       - name: Checkout code
