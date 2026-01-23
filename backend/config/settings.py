@@ -99,13 +99,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+DATABASE_SSL_REQUIRE = os.getenv("DATABASE_SSL_REQUIRE", "True") == "True"
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL"), conn_max_age=600, ssl_require=True
+        default=os.getenv("DATABASE_URL"), conn_max_age=600, ssl_require=DATABASE_SSL_REQUIRE
     )
 }
 

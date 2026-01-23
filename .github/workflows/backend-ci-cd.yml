@@ -131,6 +131,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
+          DATABASE_SSL_REQUIRE: "false"
         ports:
           - 5432:5432
         options: >-
@@ -140,7 +141,8 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable
+      DATABASE_SSL_REQUIRE: "false"
       DJANGO_SETTINGS_MODULE: config.settings
       SECRET_KEY: test-secret-key-for-ci
       DEBUG: "False"
