@@ -451,9 +451,7 @@ def team_member_invite(request):
     role = request.data.get("role", Membership.ROLE_COLLABORATEUR)
 
     if not email:
-        return Response(
-            {"error": "Email requis"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Email requis"}, status=status.HTTP_400_BAD_REQUEST)
 
     # Valider le rôle
     valid_roles = [Membership.ROLE_COMPTABLE, Membership.ROLE_COLLABORATEUR]

@@ -38,7 +38,9 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
 
         try:
             payload = self._decode_jwt(token)
-            logger.debug(f"JWT decoded successfully for user: {payload.get('email', 'unknown')}")
+            logger.debug(
+                f"JWT decoded successfully for user: {payload.get('email', 'unknown')}"
+            )
         except jwt.ExpiredSignatureError as err:
             logger.warning("JWT token expired")
             raise exceptions.AuthenticationFailed("Token expiré") from err
@@ -73,7 +75,9 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             logger.debug(f"JWT algorithm: {token_alg}")
         except jwt.exceptions.DecodeError as e:
             logger.error(f"JWT decode error: {str(e)}")
-            raise exceptions.AuthenticationFailed(f"Token JWT malformé: {str(e)}") from e
+            raise exceptions.AuthenticationFailed(
+                f"Token JWT malformé: {str(e)}"
+            ) from e
 
         # Support both HS256 and ES256 algorithms
         supported_algorithms = ["HS256", "ES256"]
