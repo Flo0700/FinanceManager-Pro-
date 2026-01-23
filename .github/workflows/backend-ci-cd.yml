@@ -210,6 +210,13 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ] || [ -z "${{ secrets.GCP_REGION }}" ] || [ -z "${{ secrets.GCP_SERVICE_NAME }}" ]; then
+            echo "ERROR: One or more required secrets (GCP_PROJECT_ID, GCP_REGION, GCP_SERVICE_NAME) are missing."
+            exit 1
+          fi
+
       - name: Extract metadata for Docker
         id: meta
         working-directory: ${{ github.workspace }}
