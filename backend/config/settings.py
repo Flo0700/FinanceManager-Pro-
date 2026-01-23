@@ -106,7 +106,9 @@ DATABASE_SSL_REQUIRE = os.getenv("DATABASE_SSL_REQUIRE", "True") == "True"
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL"), conn_max_age=600, ssl_require=DATABASE_SSL_REQUIRE
+        default=os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=DATABASE_SSL_REQUIRE,
     )
 }
 
