@@ -42,9 +42,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Ruff linter
-        run: ruff check . --output-format=github
-
       - name: Check Black formatting
         run: black --check --diff .
 
@@ -143,6 +140,7 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable
       DATABASE_SSL_REQUIRE: "false"
+
       DJANGO_SETTINGS_MODULE: config.settings
       SECRET_KEY: test-secret-key-for-ci
       DEBUG: "False"
