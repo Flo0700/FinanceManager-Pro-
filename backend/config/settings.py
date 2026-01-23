@@ -19,9 +19,15 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Project root is one level above backend
+PROJECT_ROOT = BASE_DIR.parent
 
 # Load environment variables from .env file
-load_dotenv()
+# First try backend/.env, then project root .env
+env_file = BASE_DIR / ".env"
+if not env_file.exists():
+    env_file = PROJECT_ROOT / ".env"
+load_dotenv(env_file)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/

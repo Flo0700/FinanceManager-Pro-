@@ -365,3 +365,146 @@ def customer_create(request):
         },
         status=201,
     )
+
+
+@extend_schema(
+    tags=["Customers"],
+    summary="Détail d'un client",
+    description="Retourne les détails d'un client.",
+    responses={
+        200: CustomerSerializer,
+        401: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_detail(request, customer_id):
+    """
+    GET /api/v1/customers/{customer_id}
+    Détail d'un client.
+    """
+    entreprise = request.user.entreprise
+    if not entreprise:
+        return Response({"error": "Entreprise non définie"}, status=400)
+
+    try:
+        customer = Customer.objects.get(id=customer_id, entreprise=entreprise)
+    except Customer.DoesNotExist:
+        return Response({"error": "Client non trouvé"}, status=404)
+
+    # Récupérer les statistiques du client
+    invoices = Invoice.objects.filter(customer=customer)
+    total_invoices = invoices.count()
+    total_amount = sum(inv.total_ttc for inv in invoices)
+    paid_invoices = invoices.filter(status=Invoice.STATUS_PAID).count()
+
+    return Response(
+        {
+            "id": str(customer.id),
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "address": customer.address,
+            "vat_number": customer.vat_number,
+            "created_at": customer.created_at.isoformat(),
+            "stats": {
+                "total_invoices": total_invoices,
+                "total_amount": float(total_amount),
+                "paid_invoices": paid_invoices,
+            },
+        }
+    )
+
+
+@extend_schema(
+    tags=["Customers"],
+    summary="Modifier un client",
+    description="Modifie les informations d'un client.",
+    request=CustomerSerializer,
+    responses={
+        200: CustomerSerializer,
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["PUT", "PATCH"])
+@permission_classes([IsAuthenticated])
+def customer_update(request, customer_id):
+    """
+    PUT/PATCH /api/v1/customers/{customer_id}
+    Modification d'un client.
+    """
+    entreprise = request.user.entreprise
+    if not entreprise:
+        return Response({"error": "Entreprise non définie"}, status=400)
+
+    try:
+        customer = Customer.objects.get(id=customer_id, entreprise=entreprise)
+    except Customer.DoesNotExist:
+        return Response({"error": "Client non trouvé"}, status=404)
+
+    # Mise à jour des champs
+    if "name" in request.data:
+        customer.name = request.data["name"]
+    if "email" in request.data:
+        customer.email = request.data["email"]
+    if "phone" in request.data:
+        customer.phone = request.data["phone"]
+    if "address" in request.data:
+        customer.address = request.data["address"]
+    if "vat_number" in request.data:
+        customer.vat_number = request.data["vat_number"]
+
+    customer.save()
+
+    return Response(
+        {
+            "id": str(customer.id),
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "address": customer.address,
+            "vat_number": customer.vat_number,
+            "created_at": customer.created_at.isoformat(),
+        }
+    )
+
+
+@extend_schema(
+    tags=["Customers"],
+    summary="Supprimer un client",
+    description="Supprime un client (uniquement si aucune facture associée).",
+    responses={
+        200: {"type": "object", "properties": {"message": {"type": "string"}}},
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+        404: ErrorSerializer,
+    },
+)
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def customer_delete(request, customer_id):
+    """
+    DELETE /api/v1/customers/{customer_id}
+    Suppression d'un client.
+    """
+    entreprise = request.user.entreprise
+    if not entreprise:
+        return Response({"error": "Entreprise non définie"}, status=400)
+
+    try:
+        customer = Customer.objects.get(id=customer_id, entreprise=entreprise)
+    except Customer.DoesNotExist:
+        return Response({"error": "Client non trouvé"}, status=404)
+
+    # Vérifier si le client a des factures
+    if Invoice.objects.filter(customer=customer).exists():
+        return Response(
+            {"error": "Impossible de supprimer un client avec des factures associées"},
+            status=400,
+        )
+
+    customer.delete()
+    return Response({"message": "Client supprimé avec succès"})
