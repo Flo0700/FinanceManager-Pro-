@@ -249,7 +249,7 @@ jobs:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: needs.build.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Validate image tag
@@ -260,6 +260,10 @@ jobs:
             echo "ERROR: image_tag output is empty! The build job may have failed or secrets are not configured."
             exit 1
           fi
+
+      - name: Export IMAGE_TAG
+        run: |
+          echo "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" >> "$GITHUB_ENV"
 
       - name: Checkout code
         uses: actions/checkout@v4
