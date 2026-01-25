@@ -219,11 +219,13 @@ jobs:
 
       - name: Extract metadata for Docker
         id: meta
-        working-directory: ${{ github.workspace }}
+        shell: bash
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/financemanager/${{ env.SERVICE_NAME }}:${SHORT_SHA}"
+
           echo "Generated image tag: ${IMAGE_TAG}"
+          
           # Validate image tag is not empty or malformed
           if [ -z "${IMAGE_TAG}" ] || [[ "${IMAGE_TAG}" == *"//"* ]] || [[ "${IMAGE_TAG}" == *"/:"* ]]; then
             echo "ERROR: Invalid image tag. Check that GCP_PROJECT_ID, GCP_REGION, and GCP_SERVICE_NAME secrets are configured."
@@ -249,7 +251,7 @@ jobs:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
     needs: build
-    if: needs.build.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: needs.build.result == 'success' && needs.build.outputs.image_tag != '' && github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Validate image tag
