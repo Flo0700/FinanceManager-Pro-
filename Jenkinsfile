@@ -23,68 +23,65 @@ pipeline {
 
         stage('Lint & Format Check') {
             steps {
-                dir('backend') {
-                    script {
-                        docker.image('python:3.13-slim').inside {
-                            sh '''
-                                python -m pip install --upgrade pip
-                                pip install -r requirements.txt
-                                echo "=== Checking Black formatting ==="
-                                black --check --diff .
-                                echo "=== Checking isort imports ==="
-                                isort --check-only --diff .
-                            '''
-                        }
-                    }
-                }
+                sh '''
+                    docker run --rm \
+                        -v "${WORKSPACE}/backend":/app \
+                        -w /app \
+                        python:3.13-slim sh -c "
+                            python -m pip install --upgrade pip && \
+                            pip install -r requirements.txt && \
+                            echo '=== Checking Black formatting ===' && \
+                            black --check --diff . && \
+                            echo '=== Checking isort imports ===' && \
+                            isort --check-only --diff .
+                        "
+                '''
             }
         }
 
         stage('Run Tests') {
-            environment {
-                DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable'
-                DATABASE_SSL_REQUIRE = 'false'
-                DJANGO_SETTINGS_MODULE = 'config.settings'
-                SECRET_KEY = 'test-secret-key-for-ci'
-                DEBUG = 'False'
-                ALLOWED_HOSTS = '*'
-            }
             steps {
-                script {
-                    def postgres = docker.image('postgres:15').run(
-                        '-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=test_db -p 5432:5432'
-                    )
+                sh '''
+                    echo "=== Starting PostgreSQL ==="
+                    docker rm -f postgres-test 2>/dev/null || true
+                    docker run -d --name postgres-test \
+                        -e POSTGRES_USER=postgres \
+                        -e POSTGRES_PASSWORD=postgres \
+                        -e POSTGRES_DB=test_db \
+                        -p 5432:5432 \
+                        postgres:15
+                    sleep 10
+                '''
 
-                    try {
-                        sh 'sleep 10'
-
-                        dir('backend') {
-                            docker.image('python:3.13-slim').inside('--network host') {
-                                sh '''
-                                    python -m pip install --upgrade pip
-                                    pip install -r requirements.txt
-                                    pip install pytest pytest-django coverage
-
-                                    echo "=== Running migrations ==="
-                                    python manage.py migrate --run-syncdb
-
-                                    echo "=== Running tests ==="
-                                    python manage.py test --verbosity=2
-
-                                    echo "=== Running tests with coverage ==="
-                                    coverage run --source='.' manage.py test
-                                    coverage report --fail-under=50 || true
-                                    coverage xml
-                                '''
-                            }
-                        }
-                    } finally {
-                        postgres.stop()
-                    }
-                }
+                sh '''
+                    echo "=== Running Tests ==="
+                    docker run --rm --network host \
+                        -v "${WORKSPACE}/backend":/app \
+                        -w /app \
+                        -e DATABASE_URL="postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable" \
+                        -e DATABASE_SSL_REQUIRE="false" \
+                        -e DJANGO_SETTINGS_MODULE="config.settings" \
+                        -e SECRET_KEY="test-secret-key-for-ci" \
+                        -e DEBUG="False" \
+                        -e ALLOWED_HOSTS="*" \
+                        python:3.13-slim sh -c "
+                            python -m pip install --upgrade pip && \
+                            pip install -r requirements.txt && \
+                            pip install pytest pytest-django coverage && \
+                            echo '=== Running migrations ===' && \
+                            python manage.py migrate --run-syncdb && \
+                            echo '=== Running tests ===' && \
+                            python manage.py test --verbosity=2 && \
+                            echo '=== Running tests with coverage ===' && \
+                            coverage run --source='.' manage.py test && \
+                            coverage report --fail-under=50 || true && \
+                            coverage xml
+                        "
+                '''
             }
             post {
                 always {
+                    sh 'docker rm -f postgres-test 2>/dev/null || true'
                     archiveArtifacts artifacts: 'backend/coverage.xml', allowEmptyArchive: true
                 }
             }
@@ -203,32 +200,14 @@ pipeline {
 
     post {
         always {
-            script {
-                echo "=== Deployment Summary ==="
-                echo "Commit: ${env.GIT_COMMIT ?: 'unknown'}"
-                echo "Branch: ${env.BRANCH_NAME ?: 'unknown'}"
-            }
+            echo "=== Deployment Summary ==="
+            echo "Branch: ${env.BRANCH_NAME ?: 'main'}"
         }
         success {
             echo "Pipeline completed successfully!"
         }
         failure {
             echo "Pipeline failed!"
-        }
-        cleanup {
-            script {
-                try {
-                    if (getContext(hudson.FilePath)) {
-                        cleanWs(
-                            deleteDirs: true,
-                            disableDeferredWipeout: true,
-                            notFailBuild: true
-                        )
-                    }
-                } catch (Exception e) {
-                    echo "Skipping workspace cleanup: ${e.message}"
-                }
-            }
         }
     }
 }
