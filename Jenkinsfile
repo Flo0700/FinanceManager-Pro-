@@ -29,33 +29,23 @@ pipeline {
         }
 
         stage('Lint & Format Check') {
-            agent {
-                dockerContainer {
-                    image 'python:3.13-slim'
-                    args '-u root'
-                }
-            }
             steps {
-                dir('backend') {
-                    sh '''
-                        python -m pip install --upgrade pip
-                        pip install -r requirements.txt
-                        echo "=== Checking Black formatting ==="
-                        black --check --diff .
-                        echo "=== Checking isort imports ==="
-                        isort --check-only --diff .
-                    '''
+                script {
+                    docker.image('python:3.13-slim').inside('-v $(pwd):/workspace -w /workspace/backend') {
+                        sh '''
+                            python -m pip install --upgrade pip
+                            pip install -r requirements.txt
+                            echo "=== Checking Black formatting ==="
+                            black --check --diff .
+                            echo "=== Checking isort imports ==="
+                            isort --check-only --diff .
+                        '''
+                    }
                 }
             }
         }
 
         stage('Run Tests') {
-            agent {
-                dockerContainer {
-                    image 'python:3.13-slim'
-                    args '-u root --network host'
-                }
-            }
             environment {
                 DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable'
                 DATABASE_SSL_REQUIRE = 'false'
@@ -66,15 +56,20 @@ pipeline {
             }
             steps {
                 script {
-                    docker.image('postgres:15').withRun(
+                    // Start PostgreSQL container
+                    def postgres = docker.image('postgres:15').run(
                         '-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=test_db -p 5432:5432'
-                    ) { postgres ->
+                    )
+                    
+                    try {
                         sh 'sleep 10'
-                        dir('backend') {
+                        
+                        docker.image('python:3.13-slim').inside('--network host -v $(pwd):/workspace -w /workspace/backend') {
                             sh '''
                                 python -m pip install --upgrade pip
                                 pip install -r requirements.txt
                                 pip install pytest pytest-django coverage
+                                
                                 echo "=== Running migrations ==="
                                 python manage.py migrate --run-syncdb
                                 echo "=== Running tests ==="
@@ -85,20 +80,14 @@ pipeline {
                                 coverage xml
                             '''
                         }
+                    } finally {
+                        postgres.stop()
                     }
                 }
             }
             post {
                 always {
                     archiveArtifacts artifacts: 'backend/coverage.xml', allowEmptyArchive: true
-                    publishHTML(target: [
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'backend',
-                        reportFiles: 'coverage.xml',
-                        reportName: 'Coverage Report'
-                    ])
                 }
             }
         }
