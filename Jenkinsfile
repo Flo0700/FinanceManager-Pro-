@@ -31,15 +31,17 @@ pipeline {
         stage('Lint & Format Check') {
             steps {
                 script {
-                    docker.image('python:3.13-slim').inside('-v $(pwd):/workspace -w /workspace/backend') {
-                        sh '''
-                            python -m pip install --upgrade pip
-                            pip install -r requirements.txt
-                            echo "=== Checking Black formatting ==="
-                            black --check --diff .
-                            echo "=== Checking isort imports ==="
-                            isort --check-only --diff .
-                        '''
+                    node {
+                        docker.image('python:3.13-slim').inside('-v $(pwd):/workspace -w /workspace/backend') {
+                            sh '''
+                                python -m pip install --upgrade pip
+                                pip install -r requirements.txt
+                                echo "=== Checking Black formatting ==="
+                                black --check --diff .
+                                echo "=== Checking isort imports ==="
+                                isort --check-only --diff .
+                            '''
+                        }
                     }
                 }
             }
@@ -56,32 +58,34 @@ pipeline {
             }
             steps {
                 script {
-                    // Start PostgreSQL container
-                    def postgres = docker.image('postgres:15').run(
-                        '-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=test_db -p 5432:5432'
-                    )
-                    
-                    try {
-                        sh 'sleep 10'
+                    node {
+                        // Start PostgreSQL container
+                        def postgres = docker.image('postgres:15').run(
+                            '-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=test_db -p 5432:5432'
+                        )
                         
-                        docker.image('python:3.13-slim').inside('--network host -v $(pwd):/workspace -w /workspace/backend') {
-                            sh '''
-                                python -m pip install --upgrade pip
-                                pip install -r requirements.txt
-                                pip install pytest pytest-django coverage
-                                
-                                echo "=== Running migrations ==="
-                                python manage.py migrate --run-syncdb
-                                echo "=== Running tests ==="
-                                python manage.py test --verbosity=2
-                                echo "=== Running tests with coverage ==="
-                                coverage run --source='.' manage.py test
-                                coverage report --fail-under=50 || true
-                                coverage xml
-                            '''
+                        try {
+                            sh 'sleep 10'
+                            
+                            docker.image('python:3.13-slim').inside('--network host -v $(pwd):/workspace -w /workspace/backend') {
+                                sh '''
+                                    python -m pip install --upgrade pip
+                                    pip install -r requirements.txt
+                                    pip install pytest pytest-django coverage
+                                    
+                                    echo "=== Running migrations ==="
+                                    python manage.py migrate --run-syncdb
+                                    echo "=== Running tests ==="
+                                    python manage.py test --verbosity=2
+                                    echo "=== Running tests with coverage ==="
+                                    coverage run --source='.' manage.py test
+                                    coverage report --fail-under=50 || true
+                                    coverage xml
+                                '''
+                            }
+                        } finally {
+                            postgres.stop()
                         }
-                    } finally {
-                        postgres.stop()
                     }
                 }
             }
