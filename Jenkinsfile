@@ -30,7 +30,7 @@ pipeline {
 
         stage('Lint & Format Check') {
             agent {
-                docker {
+                dockerContainer {
                     image 'python:3.13-slim'
                     args '-u root'
                 }
@@ -51,7 +51,7 @@ pipeline {
 
         stage('Run Tests') {
             agent {
-                docker {
+                dockerContainer {
                     image 'python:3.13-slim'
                     args '-u root --network host'
                 }
