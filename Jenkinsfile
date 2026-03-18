@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_ID   = credentials('GCP_PROJECT_ID')
-        REGION       = credentials('GCP_REGION')
-        SERVICE_NAME = credentials('GCP_SERVICE_NAME')
-        SERVICE_PORT = credentials('SERVICE_PORT')
+        PROJECT_ID      = credentials('GCP_PROJECT_ID')
+        REGION          = credentials('GCP_REGION')
+        SERVICE_NAME    = credentials('GCP_SERVICE_NAME')
+        SERVICE_PORT    = credentials('SERVICE_PORT')
     }
 
     options {
@@ -18,13 +18,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                script {
-                    env.RESOLVED_GIT_COMMIT = sh(
-                        script: 'git rev-parse HEAD',
-                        returnStdout: true
-                    ).trim()
-                    echo "Checked out commit: ${env.RESOLVED_GIT_COMMIT}"
-                }
             }
         }
 
@@ -34,7 +27,6 @@ pipeline {
                     script {
                         docker.image('python:3.13-slim').inside {
                             sh '''
-                                set -eu
                                 python -m pip install --upgrade pip
                                 pip install -r requirements.txt
                                 echo "=== Checking Black formatting ==="
@@ -50,12 +42,12 @@ pipeline {
 
         stage('Run Tests') {
             environment {
-                DATABASE_URL         = 'postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable'
+                DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable'
                 DATABASE_SSL_REQUIRE = 'false'
                 DJANGO_SETTINGS_MODULE = 'config.settings'
-                SECRET_KEY           = 'test-secret-key-for-ci'
-                DEBUG                = 'False'
-                ALLOWED_HOSTS        = '*'
+                SECRET_KEY = 'test-secret-key-for-ci'
+                DEBUG = 'False'
+                ALLOWED_HOSTS = '*'
             }
             steps {
                 script {
@@ -69,7 +61,6 @@ pipeline {
                         dir('backend') {
                             docker.image('python:3.13-slim').inside('--network host') {
                                 sh '''
-                                    set -eu
                                     python -m pip install --upgrade pip
                                     pip install -r requirements.txt
                                     pip install pytest pytest-django coverage
@@ -105,25 +96,20 @@ pipeline {
             }
             steps {
                 script {
-                    def shortSha = sh(
-                        script: 'git rev-parse --short=7 HEAD',
-                        returnStdout: true
-                    ).trim()
-
+                    def shortSha = sh(script: "git rev-parse --short=7 HEAD", returnStdout: true).trim()
                     env.SHORT_SHA = shortSha
-                    env.REGISTRY = "${env.REGION}-docker.pkg.dev"
-                    env.IMAGE_TAG = "${env.REGISTRY}/${env.PROJECT_ID}/financemanager/${env.SERVICE_NAME}:${shortSha}"
+                    env.REGISTRY = "${REGION}-docker.pkg.dev"
+                    env.IMAGE_TAG = "${env.REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:${shortSha}"
 
                     echo "Generated image tag: ${env.IMAGE_TAG}"
 
-                    if (!env.IMAGE_TAG?.trim() || env.IMAGE_TAG.contains('//') || env.IMAGE_TAG.contains('/:')) {
+                    if (!env.IMAGE_TAG || env.IMAGE_TAG.contains('//') || env.IMAGE_TAG.contains('/:')) {
                         error "Invalid image tag. Check that GCP credentials are configured."
                     }
                 }
 
                 withCredentials([file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        set -eu
                         gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
                         gcloud config set project "${PROJECT_ID}"
                         gcloud auth configure-docker "${REGISTRY}" --quiet
@@ -132,7 +118,6 @@ pipeline {
 
                 dir('backend') {
                     sh '''
-                        set -eu
                         echo "=== Building Docker image ==="
                         docker build -t "${IMAGE_TAG}" .
                         docker tag "${IMAGE_TAG}" "${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:latest"
@@ -151,21 +136,20 @@ pipeline {
             }
             steps {
                 script {
-                    if (!env.IMAGE_TAG?.trim()) {
+                    if (!env.IMAGE_TAG) {
                         error "IMAGE_TAG is empty! Build stage may have failed."
                     }
                 }
 
                 withCredentials([
                     file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
-                    string(credentialsId: 'DJANGO_SECRET_KEY', variable: 'DJANGO_SECRET_KEY_SECRET_NAME'),
-                    string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL_SECRET_NAME'),
-                    string(credentialsId: 'SUPABASE_URL', variable: 'SUPABASE_URL_SECRET_NAME'),
-                    string(credentialsId: 'SUPABASE_KEY', variable: 'SUPABASE_KEY_SECRET_NAME'),
-                    string(credentialsId: 'SUPABASE_JWT_SECRET', variable: 'SUPABASE_JWT_SECRET_SECRET_NAME')
+                    string(credentialsId: 'DJANGO_SECRET_KEY', variable: 'DJANGO_SECRET_KEY'),
+                    string(credentialsId: 'DATABASE_URL', variable: 'DB_URL'),
+                    string(credentialsId: 'SUPABASE_URL', variable: 'SUPA_URL'),
+                    string(credentialsId: 'SUPABASE_KEY', variable: 'SUPA_KEY'),
+                    string(credentialsId: 'SUPABASE_JWT_SECRET', variable: 'SUPA_JWT')
                 ]) {
                     sh '''
-                        set -eu
                         gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
                         gcloud config set project "${PROJECT_ID}"
 
@@ -182,11 +166,11 @@ pipeline {
                             --max-instances 10 \
                             --set-env-vars "DEBUG=False" \
                             --set-env-vars "ALLOWED_HOSTS=*" \
-                            --set-secrets "SECRET_KEY=${DJANGO_SECRET_KEY_SECRET_NAME}:latest" \
-                            --set-secrets "DATABASE_URL=${DATABASE_URL_SECRET_NAME}:latest" \
-                            --set-secrets "SUPABASE_URL=${SUPABASE_URL_SECRET_NAME}:latest" \
-                            --set-secrets "SUPABASE_KEY=${SUPABASE_KEY_SECRET_NAME}:latest" \
-                            --set-secrets "SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET_SECRET_NAME}:latest"
+                            --set-secrets "SECRET_KEY=${DJANGO_SECRET_KEY}:latest" \
+                            --set-secrets "DATABASE_URL=${DB_URL}:latest" \
+                            --set-secrets "SUPABASE_URL=${SUPA_URL}:latest" \
+                            --set-secrets "SUPABASE_KEY=${SUPA_KEY}:latest" \
+                            --set-secrets "SUPABASE_JWT_SECRET=${SUPA_JWT}:latest"
                     '''
                 }
             }
@@ -199,7 +183,6 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        set -eu
                         gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
                         gcloud config set project "${PROJECT_ID}"
 
@@ -220,9 +203,11 @@ pipeline {
 
     post {
         always {
-            echo "=== Deployment Summary ==="
-            echo "Commit: ${env.RESOLVED_GIT_COMMIT ?: env.GIT_COMMIT ?: 'unknown'}"
-            echo "Branch: ${env.BRANCH_NAME ?: 'unknown'}"
+            script {
+                echo "=== Deployment Summary ==="
+                echo "Commit: ${env.GIT_COMMIT ?: 'unknown'}"
+                echo "Branch: ${env.BRANCH_NAME ?: 'unknown'}"
+            }
         }
         success {
             echo "Pipeline completed successfully!"
@@ -233,13 +218,15 @@ pipeline {
         cleanup {
             script {
                 try {
-                    cleanWs(
-                        deleteDirs: true,
-                        disableDeferredWipeout: true,
-                        notFailBuild: true
-                    )
+                    if (getContext(hudson.FilePath)) {
+                        cleanWs(
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true
+                        )
+                    }
                 } catch (Exception e) {
-                    echo "Skipping workspace cleanup: ${e.getMessage()}"
+                    echo "Skipping workspace cleanup: ${e.message}"
                 }
             }
         }
