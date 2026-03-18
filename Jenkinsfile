@@ -30,9 +30,9 @@ pipeline {
 
         stage('Lint & Format Check') {
             steps {
-                script {
-                    node {
-                        docker.image('python:3.13-slim').inside('-v $(pwd):/workspace -w /workspace/backend') {
+                dir('backend') {
+                    script {
+                        docker.image('python:3.13-slim').inside {
                             sh '''
                                 python -m pip install --upgrade pip
                                 pip install -r requirements.txt
@@ -58,34 +58,35 @@ pipeline {
             }
             steps {
                 script {
-                    node {
-                        // Start PostgreSQL container
-                        def postgres = docker.image('postgres:15').run(
-                            '-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=test_db -p 5432:5432'
-                        )
-                        
-                        try {
-                            sh 'sleep 10'
-                            
-                            docker.image('python:3.13-slim').inside('--network host -v $(pwd):/workspace -w /workspace/backend') {
+                    def postgres = docker.image('postgres:15').run(
+                        '-e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=test_db -p 5432:5432'
+                    )
+
+                    try {
+                        sh 'sleep 10'
+
+                        dir('backend') {
+                            docker.image('python:3.13-slim').inside('--network host') {
                                 sh '''
                                     python -m pip install --upgrade pip
                                     pip install -r requirements.txt
                                     pip install pytest pytest-django coverage
-                                    
+
                                     echo "=== Running migrations ==="
                                     python manage.py migrate --run-syncdb
+
                                     echo "=== Running tests ==="
                                     python manage.py test --verbosity=2
+
                                     echo "=== Running tests with coverage ==="
                                     coverage run --source='.' manage.py test
                                     coverage report --fail-under=50 || true
                                     coverage xml
                                 '''
                             }
-                        } finally {
-                            postgres.stop()
                         }
+                    } finally {
+                        postgres.stop()
                     }
                 }
             }
@@ -105,30 +106,31 @@ pipeline {
                     def shortSha = sh(script: "git rev-parse --short=7 HEAD", returnStdout: true).trim()
                     env.SHORT_SHA = shortSha
                     env.IMAGE_TAG = "${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:${shortSha}"
-                    
+
                     echo "Generated image tag: ${env.IMAGE_TAG}"
-                    
+
                     if (!env.IMAGE_TAG || env.IMAGE_TAG.contains('//') || env.IMAGE_TAG.contains('/:')) {
                         error "Invalid image tag. Check that GCP credentials are configured."
                     }
                 }
-                
+
                 withCredentials([file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        gcloud auth activate-service-account --key-file=${GOOGLE_APPLICATION_CREDENTIALS}
-                        gcloud config set project ${PROJECT_ID}
-                        gcloud auth configure-docker ${REGISTRY} --quiet
+                        gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                        gcloud config set project "${PROJECT_ID}"
+                        gcloud auth configure-docker "${REGISTRY}" --quiet
                     '''
                 }
-                
+
                 dir('backend') {
                     sh '''
                         echo "=== Building Docker image ==="
-                        docker build -t ${IMAGE_TAG} .
-                        docker tag ${IMAGE_TAG} ${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:latest
+                        docker build -t "${IMAGE_TAG}" .
+                        docker tag "${IMAGE_TAG}" "${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:latest"
+
                         echo "=== Pushing Docker image ==="
-                        docker push ${IMAGE_TAG}
-                        docker push ${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:latest
+                        docker push "${IMAGE_TAG}"
+                        docker push "${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:latest"
                     '''
                 }
             }
@@ -144,19 +146,19 @@ pipeline {
                         error "IMAGE_TAG is empty! Build stage may have failed."
                     }
                 }
-                
+
                 withCredentials([file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        gcloud auth activate-service-account --key-file=${GOOGLE_APPLICATION_CREDENTIALS}
-                        gcloud config set project ${PROJECT_ID}
-                        
+                        gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                        gcloud config set project "${PROJECT_ID}"
+
                         echo "=== Deploying to Cloud Run ==="
-                        gcloud run deploy ${SERVICE_NAME} \
-                            --image ${IMAGE_TAG} \
-                            --region ${REGION} \
+                        gcloud run deploy "${SERVICE_NAME}" \
+                            --image "${IMAGE_TAG}" \
+                            --region "${REGION}" \
                             --platform managed \
                             --allow-unauthenticated \
-                            --port ${SERVICE_PORT} \
+                            --port "${SERVICE_PORT}" \
                             --memory 512Mi \
                             --cpu 1 \
                             --min-instances 0 \
@@ -180,16 +182,17 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
                     sh '''
-                        gcloud auth activate-service-account --key-file=${GOOGLE_APPLICATION_CREDENTIALS}
-                        gcloud config set project ${PROJECT_ID}
-                        
-                        SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} \
-                            --region ${REGION} \
+                        gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
+                        gcloud config set project "${PROJECT_ID}"
+
+                        SERVICE_URL=$(gcloud run services describe "${SERVICE_NAME}" \
+                            --region "${REGION}" \
                             --format 'value(status.url)')
+
                         echo "Deployed to: ${SERVICE_URL}"
-                        
                         echo "Waiting for service to be ready..."
                         sleep 10
+
                         curl -f "${SERVICE_URL}/api/v1/health/" || echo "Health check endpoint not available"
                     '''
                 }
@@ -201,7 +204,7 @@ pipeline {
         always {
             echo "=== Deployment Summary ==="
             echo "Commit: ${env.GIT_COMMIT}"
-            echo "Branch: ${env.GIT_BRANCH}"
+            echo "Branch: ${env.BRANCH_NAME}"
         }
         success {
             echo "Pipeline completed successfully!"
