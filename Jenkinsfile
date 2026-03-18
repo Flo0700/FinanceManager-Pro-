@@ -2,17 +2,10 @@ pipeline {
     agent any
 
     environment {
-        PROJECT_ID = credentials('GCP_PROJECT_ID')
-        REGION = credentials('GCP_REGION')
-        SERVICE_NAME = credentials('GCP_SERVICE_NAME')
-        REGISTRY = "${REGION}-docker.pkg.dev"
-        SERVICE_PORT = credentials('SERVICE_PORT')
-        GCP_SA_KEY = credentials('GCP_SA_KEY')
-        DJANGO_SECRET_KEY = credentials('DJANGO_SECRET_KEY')
-        DATABASE_URL = credentials('DATABASE_URL')
-        SUPABASE_URL = credentials('SUPABASE_URL')
-        SUPABASE_KEY = credentials('SUPABASE_KEY')
-        SUPABASE_JWT_SECRET = credentials('SUPABASE_JWT_SECRET')
+        PROJECT_ID      = credentials('GCP_PROJECT_ID')
+        REGION          = credentials('GCP_REGION')
+        SERVICE_NAME    = credentials('GCP_SERVICE_NAME')
+        SERVICE_PORT    = credentials('SERVICE_PORT')
     }
 
     options {
@@ -105,7 +98,8 @@ pipeline {
                 script {
                     def shortSha = sh(script: "git rev-parse --short=7 HEAD", returnStdout: true).trim()
                     env.SHORT_SHA = shortSha
-                    env.IMAGE_TAG = "${REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:${shortSha}"
+                    env.REGISTRY = "${REGION}-docker.pkg.dev"
+                    env.IMAGE_TAG = "${env.REGISTRY}/${PROJECT_ID}/financemanager/${SERVICE_NAME}:${shortSha}"
 
                     echo "Generated image tag: ${env.IMAGE_TAG}"
 
@@ -147,7 +141,14 @@ pipeline {
                     }
                 }
 
-                withCredentials([file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS')]) {
+                withCredentials([
+                    file(credentialsId: 'GCP_SA_KEY_FILE', variable: 'GOOGLE_APPLICATION_CREDENTIALS'),
+                    string(credentialsId: 'DJANGO_SECRET_KEY', variable: 'DJANGO_SECRET_KEY'),
+                    string(credentialsId: 'DATABASE_URL', variable: 'DB_URL'),
+                    string(credentialsId: 'SUPABASE_URL', variable: 'SUPA_URL'),
+                    string(credentialsId: 'SUPABASE_KEY', variable: 'SUPA_KEY'),
+                    string(credentialsId: 'SUPABASE_JWT_SECRET', variable: 'SUPA_JWT')
+                ]) {
                     sh '''
                         gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
                         gcloud config set project "${PROJECT_ID}"
@@ -166,10 +167,10 @@ pipeline {
                             --set-env-vars "DEBUG=False" \
                             --set-env-vars "ALLOWED_HOSTS=*" \
                             --set-secrets "SECRET_KEY=${DJANGO_SECRET_KEY}:latest" \
-                            --set-secrets "DATABASE_URL=${DATABASE_URL}:latest" \
-                            --set-secrets "SUPABASE_URL=${SUPABASE_URL}:latest" \
-                            --set-secrets "SUPABASE_KEY=${SUPABASE_KEY}:latest" \
-                            --set-secrets "SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}:latest"
+                            --set-secrets "DATABASE_URL=${DB_URL}:latest" \
+                            --set-secrets "SUPABASE_URL=${SUPA_URL}:latest" \
+                            --set-secrets "SUPABASE_KEY=${SUPA_KEY}:latest" \
+                            --set-secrets "SUPABASE_JWT_SECRET=${SUPA_JWT}:latest"
                     '''
                 }
             }
@@ -202,9 +203,16 @@ pipeline {
 
     post {
         always {
-            echo "=== Deployment Summary ==="
-            echo "Commit: ${env.GIT_COMMIT}"
-            echo "Branch: ${env.BRANCH_NAME}"
+            script {
+                def resolvedCommit = env.GIT_COMMIT
+                if (!resolvedCommit?.trim()) {
+                    resolvedCommit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                }
+
+                echo "=== Deployment Summary ==="
+                echo "Commit: ${resolvedCommit}"
+                echo "Branch: ${env.BRANCH_NAME}"
+            }
         }
         success {
             echo "Pipeline completed successfully!"
@@ -213,7 +221,19 @@ pipeline {
             echo "Pipeline failed!"
         }
         cleanup {
-            cleanWs()
+            script {
+                if (env.NODE_NAME) {
+                    node(env.NODE_NAME) {
+                        cleanWs(
+                            deleteDirs: true,
+                            disableDeferredWipeout: true,
+                            notFailBuild: true
+                        )
+                    }
+                } else {
+                    echo "Skipping workspace cleanup: no node context available."
+                }
+            }
         }
     }
 }
